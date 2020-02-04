@@ -1,4 +1,4 @@
 source 'https://rubygems.org'
 
-# Specify your gem's dependencies in prerender_rails.gemspec
+# Specify your gem's dependencies in rack-prerender.gemspec
 gemspec
