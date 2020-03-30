@@ -2,6 +2,6 @@
 
 module Rack
   class Prerender
-    VERSION = '1.6.2'
+    VERSION = '1.6.2.1'
   end
 end

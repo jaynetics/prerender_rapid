@@ -48,7 +48,7 @@ module Rack
         response = http.request(req)
         if response['Content-Encoding'] == 'gzip'
           response.body = ActiveSupport::Gzip.decompress(response.body)
-          response['Content-Length'] = response.body.length
+          response['Content-Length'] = response.body.bytesize
           response.delete('Content-Encoding')
         end
         response
