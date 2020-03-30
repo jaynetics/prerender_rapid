@@ -7,7 +7,7 @@ describe Rack::Prerender do
   let(:user)      { 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/29.0.1547.76 Safari/537.36' }
 
   it 'has a VERSION number' do
-    expect(Rack::Prerender::VERSION).to match(/\A\d+\.\d+\.\d+\z/)
+    expect(Rack::Prerender::VERSION).to match(/\A\d+\.\d+\.\d+(\.\d+)?\z/)
   end
 
   it 'returns a prerendered response for a crawler with the returned status code and headers' do
