@@ -1,3 +1,5 @@
+require 'zlib'
+
 module Rack
   class Prerender
     class Fetcher
@@ -7,16 +9,29 @@ module Rack
         @options = options
       end
 
+      # Entry point for automatic fetching via the middleware.
       def call(env)
         cached_response = before_render(env)
         return cached_response.finish if cached_response
 
-        if prerendered_response = fetch(env)
+        if prerendered_response = fetch_env(env)
           response = build_rack_response_from_prerender(prerendered_response)
           after_render(env, prerendered_response)
           return response.finish
         end
+
         nil
+      end
+
+      # Entry point for manual fetching. Does not run callbacks.
+      def fetch(arg)
+        case arg
+        when String, Symbol, URI then fetch_url(arg.to_s)
+        when Hash                then fetch_env(arg)
+        when Rack::Request       then fetch_env(arg.env)
+        else
+          raise ArgumentError, "expected a URL, Request or env, got #{arg.class}"
+        end
       end
 
       def before_render(env)
@@ -33,60 +48,98 @@ module Rack
         end
       end
 
-      def fetch(env)
-        url = URI.parse(api_url(env))
-        headers = {
-          'User-Agent'      => env['HTTP_USER_AGENT'],
-          'Accept-Encoding' => 'gzip'
-        }
-        headers['X-Prerender-Token'] = ENV['PRERENDER_TOKEN'] if ENV['PRERENDER_TOKEN']
-        headers['X-Prerender-Token'] = options[:prerender_token] if options[:prerender_token]
-        req = Net::HTTP::Get.new(url.request_uri, headers)
-        req.basic_auth(ENV['PRERENDER_USERNAME'], ENV['PRERENDER_PASSWORD']) if options[:basic_auth]
-        http = Net::HTTP.new(url.host, url.port)
-        http.use_ssl = true if url.scheme == 'https'
-        response = http.request(req)
-        if response['Content-Encoding'] == 'gzip'
-          response.body = ActiveSupport::Gzip.decompress(response.body)
-          response['Content-Length'] = response.body.bytesize
-          response.delete('Content-Encoding')
+      def fetch_env(env)
+        fetch_url(request_url(env), as: env['HTTP_USER_AGENT'])
+      end
+
+      def fetch_url(url, as: nil)
+        uri = URI.parse(api_url(url))
+        fetch_api_uri(uri, as: as)
+      end
+
+      # This is just horrible, but replacing net/http would break compatibility
+      # because the response object is leaked to several callbacks :(
+      def fetch_api_uri(uri, as: nil)
+        req = Net::HTTP::Get.new(uri.request_uri, headers(user_agent: as))
+        if options[:basic_auth]
+          req.basic_auth(ENV['PRERENDER_USERNAME'], ENV['PRERENDER_PASSWORD'])
         end
-        response
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl = true if uri.scheme == 'https'
+        response = http.request(req)
+        decompress(response)
       rescue
         nil
       end
 
-      def api_url(env)
-        new_env = env
-        if env['CF-VISITOR']
-          match = /"scheme":"(http|https)"/.match(env['CF-VISITOR'])
-          new_env['HTTPS'] = true and new_env['rack.url_scheme'] = "https" and new_env['SERVER_PORT'] = 443 if (match && match[1] == 'https')
-          new_env['HTTPS'] = false and new_env['rack.url_scheme'] = "http" and new_env['SERVER_PORT'] = 80 if (match && match[1] == 'http')
+      def api_url(url)
+        if service_url.match?(/[=\/]$/)
+          "#{service_url}#{url}"
+        else
+          "#{service_url}/#{url}"
         end
-
-        if env['X-FORWARDED-PROTO']
-          new_env['HTTPS'] = true and new_env['rack.url_scheme'] = "https" and new_env['SERVER_PORT'] = 443 if env["X-FORWARDED-PROTO"].split(',')[0] == 'https'
-          new_env['HTTPS'] = false and new_env['rack.url_scheme'] = "http" and new_env['SERVER_PORT'] = 80 if env["X-FORWARDED-PROTO"].split(',')[0] == 'http'
-        end
-
-        if options[:protocol]
-          new_env['HTTPS'] = true and new_env['rack.url_scheme'] = "https" and new_env['SERVER_PORT'] = 443 if options[:protocol] == 'https'
-          new_env['HTTPS'] = false and new_env['rack.url_scheme'] = "http" and new_env['SERVER_PORT'] = 80 if options[:protocol] == 'http'
-        end
-
-        url = Rack::Request.new(new_env).url
-        prerender_url = prerender_service_url()
-        forward_slash = prerender_url[-1, 1] == '/' ? '' : '/'
-        "#{prerender_url}#{forward_slash}#{url}"
       end
 
-      def prerender_service_url
-        options[:prerender_service_url] || ENV['PRERENDER_SERVICE_URL'] || 'http://service.prerender.io/'
+      def service_url
+        options[:prerender_service_url] || ENV['PRERENDER_SERVICE_URL'] ||
+          'http://service.prerender.io'
+      end
+
+      def headers(user_agent: nil)
+        {
+          'Accept-Encoding'   => 'gzip',
+          'User-Agent'        => user_agent,
+          'X-Prerender-Token' => token,
+        }.compact
+      end
+
+      def token
+        options[:prerender_token] || ENV['PRERENDER_TOKEN']
+      end
+
+      def request_url(env)
+        if env['CF-VISITOR'] && protocol = env['CF-VISITOR'][/"scheme":"(http|https)"/, 1]
+          configure_protocol(env, protocol)
+        end
+
+        if env['X-FORWARDED-PROTO'] && protocol = env["X-FORWARDED-PROTO"].split(',')[0]
+          configure_protocol(env, protocol)
+        end
+
+        if protocol = options[:protocol]
+          configure_protocol(env, protocol)
+        end
+
+        Rack::Request.new(env).url
+      end
+
+      def configure_protocol(env, protocol)
+        return unless protocol == 'http' || protocol == 'https'
+
+        env['rack.url_scheme'] = protocol
+        env['HTTPS']           = protocol == 'https'
+        env['SERVER_PORT']     = protocol == 'https' ? 443 : 80
+      end
+
+      def decompress(response)
+        if response['Content-Encoding'] == 'gzip'
+          response.body =
+            Zlib::GzipReader.wrap(StringIO.new(response.body), &:read)
+          response['Content-Length'] = response.body.bytesize
+          response.delete('Content-Encoding')
+        end
+        response
       end
 
       def build_rack_response_from_prerender(prerendered_response)
-        response = Rack::Response.new(prerendered_response.body, prerendered_response.code, prerendered_response)
-        options[:build_rack_response_from_prerender].call(response, prerendered_response) if options[:build_rack_response_from_prerender]
+        response = Rack::Response.new(
+          prerendered_response.body,
+          prerendered_response.code,
+          prerendered_response,
+        )
+        if callback = options[:build_rack_response_from_prerender]
+          callback.call(response, prerendered_response)
+        end
         response
       end
 

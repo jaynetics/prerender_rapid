@@ -10,13 +10,14 @@ module Rack
         @extensions_to_ignore = cast_to_regexp(opts[:extensions_to_ignore] || EXTENSIONS_TO_IGNORE)
       end
 
+      # This is run on every request, so performance matters here.
       def matches?(env)
         return false if env['REQUEST_METHOD'] != 'GET' ||
                         env['HTTP_X_PRERENDER'] ||
                         (user_agent = env['HTTP_USER_AGENT']).nil?
 
         query = env['QUERY_STRING'].to_s
-        return false unless crawler_user_agents.match?(user_agent.downcase) ||
+        return false unless crawler_user_agents.match?(user_agent) ||
                             env['HTTP_X_BUFFERBOT'] ||
                             query.include?('_escaped_fragment_')
 
@@ -25,7 +26,7 @@ module Rack
         return false if extensions_to_ignore.match?(fullpath)
         return false if whitelist && !whitelist.match?(fullpath)
         return false if blacklist && (blacklist.match?(fullpath) ||
-                                      blacklist.match?(env['HTTP_REFERER'].to_s.downcase))
+                                      blacklist.match?(env['HTTP_REFERER'].to_s))
 
         true
       end
@@ -33,14 +34,16 @@ module Rack
       private
 
       def cast_to_regexp(list_arg, escape: true)
-        case list_arg
-        when Regexp, nil
-          list_arg
-        when Array
-          escape ? Regexp.union(list_arg) : Regexp.new(list_arg.join('|'))
-        else
-          Regexp.new(escape ? Regexp.escape(list_arg) : list_arg)
-        end
+        regexp =
+          case list_arg
+          when Regexp, nil
+            list_arg
+          when Array
+            escape ? Regexp.union(list_arg) : Regexp.new(list_arg.join('|'))
+          else
+            Regexp.new(escape ? Regexp.escape(list_arg) : list_arg)
+          end
+        regexp && Regexp.new(regexp.source, Regexp::IGNORECASE)
       end
 
       CRAWLER_USER_AGENTS = [

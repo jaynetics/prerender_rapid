@@ -1,6 +1,6 @@
 require 'benchmark/ips'
-require 'rack'
 require 'prerender_rails'
+require 'rack' # comes last because prerender_rails needs an old version
 
 PrerenderRails = Rack::Prerender.dup
 

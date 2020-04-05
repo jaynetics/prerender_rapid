@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+
+require 'bundler/setup'
+require 'rack/prerender'
+
+P = Rack::Prerender
+
+require 'irb'
+IRB.start(__FILE__)
