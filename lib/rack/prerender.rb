@@ -12,7 +12,7 @@ module Rack
       @app        = app
       @constraint = Constraint.new(options)
       @fetcher    = Fetcher.new(options)
-      @@options   = options
+      self.class.instance_variable_set(:@options, options)
     end
 
     def call(env)
@@ -22,17 +22,17 @@ module Rack
     # utility methods
 
     def self.fetch(arg, **options)
-      Fetcher.new(@@options.to_h.merge(options)).fetch(arg)
+      Fetcher.new(@options.to_h.merge(options)).fetch(arg)
     end
 
     def self.recache_now(url, **options)
-      Recacher.new(@@options.to_h.merge(options)).call(url)
+      Recacher.new(@options.to_h.merge(options)).call(url)
     end
 
     def self.recache_later(url, **options)
       # require on demand, so ActiveJob/Sidekiq can come later in load order
       require_relative 'prerender/recache_job'
-      RecacheJob.perform_later(url, @@options.to_h.merge(options))
+      RecacheJob.perform_later(url, @options.to_h.merge(options))
     end
   end
 end
