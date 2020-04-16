@@ -127,6 +127,7 @@ module Rack
             Zlib::GzipReader.wrap(StringIO.new(response.body), &:read)
           response['Content-Length'] = response.body.bytesize
           response.delete('Content-Encoding')
+          response.delete('Transfer-Encoding')
         end
         response
       end

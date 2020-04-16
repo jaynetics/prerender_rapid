@@ -53,7 +53,8 @@ Directly works with the param-based URL of the prerender node app:
 
 #### Bugfixes
 
-- correct content-length for compressed pages with multibyte chars
+- correct Content-Length for compressed pages with multibyte chars
+- removes Transfer-Encoding header after result decompression
 - supports recent (non-vulnerable) versions of Rack
 - works without undeclared dependency `activesupport`
 
