@@ -59,8 +59,14 @@ module Rack
       end
 
       def fetch_url(url, as: nil)
-        uri = URI.parse(api_url(url))
-        fetch_api_uri(uri, as: as)
+        uri = try_uri_parse(api_url(url))
+        uri && fetch_api_uri(uri, as: as)
+      end
+
+      def try_uri_parse(url)
+        URI.parse(url)
+      rescue URI::InvalidURIError
+        nil
       end
 
       # This is just horrible, but replacing net/http would break compatibility
