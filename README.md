@@ -32,10 +32,11 @@ About 0.07ms instead of 0.5ms lost per request in my case. See `benchmark.rb`.
 You can call the service manually:
 - `Rack::Prerender.fetch(my_url)` (uses token etc. from middleware setup or ENV)
 - or `Rack::Prerender.fetch(my_url, prerender_token: token, ...)`
-- you can pass a request or env to `#fetch` as well
+- you can also pass a Request or env or ActiveRecord/Model to `#fetch`:
+- `Rack::Prerender.fetch(User.last)` (assuming there is a route for user)
 
 You can use your own constraint or fetcher:
-- `Rack::Prerender.constraint = MyBotConstraint.new`
+- `rack_prerender_instance.constraint = MyBotConstraint.new`
 
 Recaching / cache-busting functionality:
 - `Rack::Prerender.recache_later(my_url)` (async, requires ActiveJob or Sidekiq)

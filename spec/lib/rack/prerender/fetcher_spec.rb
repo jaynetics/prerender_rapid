@@ -3,6 +3,11 @@ require 'spec_helper'
 
 describe Rack::Prerender::Fetcher do
   describe '#call' do
+    it 'calls #fetch_env' do
+      expect(subject).to receive(:fetch_env)
+      subject.call({})
+    end
+
     it 'returns a prerendered response for a crawler with the returned status code and headers' do
       request = Rack::MockRequest.env_for('http://x.com/', 'HTTP_USER_AGENT' => 'bot')
       stub_request(:get, subject.api_url('http://x.com/')).with(headers: ({ 'User-Agent' => 'bot' }))
@@ -67,6 +72,46 @@ describe Rack::Prerender::Fetcher do
     it 'builds the correct api url with an initialization variable url' do
       subject = Rack::Prerender::Fetcher.new(prerender_service_url: 'https://yourservice.com')
       expect(subject.api_url('https://google.com')).to eq 'https://yourservice.com/https://google.com'
+    end
+  end
+
+  describe '#fetch' do
+    it 'calls #fetch_url for Strings' do
+      expect(subject).to receive(:fetch_url).with('https://www.example.com?a=b')
+      subject.fetch('https://www.example.com?a=b')
+    end
+
+    it 'calls #fetch_url for URIs' do
+      expect(subject).to receive(:fetch_url).with('https://www.example.com?a=b')
+      subject.fetch(URI.parse('https://www.example.com?a=b'))
+    end
+
+    it 'calls #fetch_env for Requests' do
+      request = Rack::MockRequest.env_for('http://x.com/', 'HTTP_USER_AGENT' => 'bot')
+      expect(subject).to receive(:fetch_env).with(request)
+      subject.fetch(request)
+    end
+
+    it 'calls #fetch_env for env hashes' do
+      expect(subject).to receive(:fetch_env).with({ 'HTTP_USER_AGENT' => 'bot' })
+      subject.fetch({ 'HTTP_USER_AGENT' => 'bot' })
+    end
+
+    it 'calls #fetch_url for ActiveRecords, using Rails #url_for' do
+      stub_const('MyModel', Class.new)
+      stub_const('ActiveModel::Naming', Module.new)
+      MyModel.extend(ActiveModel::Naming) # as in ActiveRecord, ActiveModel
+      stub_const('Rails', double(application: double(routes: double(url_helpers: double(url_for: 'foo')))))
+      expect(subject).to receive(:fetch_url).with('foo')
+      subject.fetch(MyModel.new)
+    end
+
+    it 'raises an ArgumentError for other Objects' do
+      expect { subject.fetch(Object.new) }.to raise_error(ArgumentError)
+    end
+
+    it 'raises an ArgumentError for nil' do
+      expect { subject.fetch(nil) }.to raise_error(ArgumentError)
     end
   end
 end

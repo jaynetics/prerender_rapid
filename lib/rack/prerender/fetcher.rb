@@ -30,7 +30,13 @@ module Rack
         when Hash                then fetch_env(arg)
         when Rack::Request       then fetch_env(arg.env)
         else
-          raise ArgumentError, "expected a URL, Request or env, got #{arg.class}"
+          if defined?(ActiveModel::Naming) && ActiveModel::Naming === arg.class
+            record_url = Rails.application.routes.url_helpers.url_for(arg)
+            fetch_url(record_url)
+          else
+            raise ArgumentError,
+                  "expected URL, Request, env or record, got #{arg.class}"
+          end
         end
       end
 
