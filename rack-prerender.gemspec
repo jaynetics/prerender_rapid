@@ -20,11 +20,4 @@ Gem::Specification.new do |s|
   s.required_ruby_version = '>= 2.4.0'
 
   s.add_dependency 'rack'
-
-  s.add_development_dependency 'activejob'
-  s.add_development_dependency 'bundler'
-  s.add_development_dependency 'byebug'
-  s.add_development_dependency 'rake'
-  s.add_development_dependency 'rspec'
-  s.add_development_dependency 'webmock'
 end
