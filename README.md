@@ -1,7 +1,7 @@
 # Rack::Prerender
 
 [![Gem Version](https://badge.fury.io/rb/rack-prerender.svg)](http://badge.fury.io/rb/rack-prerender)
-[![Build Status](https://travis-ci.org/jaynetics/rack-prerender.svg?branch=master)](https://travis-ci.org/jaynetics/rack-prerender)
+[![Build Status](https://github.com/jaynetics/rack-prerender/workflows/tests/badge.svg)](https://github.com/jaynetics/rack-prerender/actions)
 
 This is a fork and drop-in replacement for [prerender_rails]( https://github.com/prerender/prerender_rails ) with some improvements, most notably improved performance for non-crawlers.
 
